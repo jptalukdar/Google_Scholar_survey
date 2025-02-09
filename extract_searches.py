@@ -1,5 +1,6 @@
 from functools import cache
 import json
+from typing import Tuple
 from urllib.parse import urlparse
 
 import requests
@@ -28,7 +29,7 @@ class DefaultEncoder(JSONEncoder):
 
 
 class GoogleScholarProvider(Provider):
-    def parse_results(self, entry):
+    def parse_results(self, entry, download=False):
         title = entry.find("h3", class_="gs_rt").text
         url = (
             entry.find("h3", class_="gs_rt").a["href"]
@@ -62,12 +63,29 @@ class GoogleScholarProvider(Provider):
             "abstract": provider.get_abstract(),
         }
 
-    def get_all_papers(self, writer=StdWriter):
+    def save_results(self, res):
+        url_hash = self.get_url_hash()
+        cache_file = os.path.join(
+            SEARCH_DIR, f"{self.__class__.__name__}_{url_hash}.json"
+        )
+        with open(cache_file, "w") as f:
+            json.dump(res, f, indent=4, cls=DefaultEncoder)
+
+    def get_all_papers(self, writer=StdWriter, download=False):
         papers = []
         for entry in self.soup.find_all("div", class_="gs_r gs_or gs_scl"):
-            res = self.parse_results(entry)
-            writer.write(res)
-            papers.append(res)
+            try:
+                res = self.parse_results(entry)
+                self.save_results(res)
+                writer.write(res)
+                papers.append(res)
+                if download and res.get("download_url", None) is not None:
+                    ok, path = self.download_pdf(res["title"], res["download_url"])
+                    writer.write(f"Downloading PDF to {path} | Status {ok}")
+                self.save_results(res)
+            except Exception as e:
+                print(f"Error: {e}")
+                writer.write(f"Error: {e}")
         return papers
 
 
@@ -95,6 +113,8 @@ def ParseProvider(url, cache: bool = False):
             return Wiley(url, cache)
         case "www.frontiersin.org":
             return Frontiers(url, cache)
+        case "dl.acm.org":
+            return ACMProvider(url, cache)
         case _:
             return EmptyProvider(url, cache)
 

@@ -5,3 +5,4 @@ from providers.provider import *
 from providers.emptyprovider import *
 from providers.springer import *
 from providers.multi_providers import *
+from providers.acm import *

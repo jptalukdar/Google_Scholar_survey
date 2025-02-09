@@ -1,3 +1,4 @@
+from typing import Tuple
 import requests
 from bs4 import BeautifulSoup
 import os
@@ -6,10 +7,15 @@ from selenium import webdriver
 from selenium.webdriver.firefox.options import Options
 
 DATADIR = ".data/"
-
+SEARCH_DIR = os.path.join(DATADIR, "searches")
+RESULTS_DIR = os.path.join(DATADIR, "results")
+DOWNLOAD_DIR = os.path.join(DATADIR, "pdfs")
 # Ensure the data directory exists
 if not os.path.exists(DATADIR):
     os.makedirs(DATADIR)
+    os.makedirs(SEARCH_DIR)
+    os.makedirs(DOWNLOAD_DIR)
+    os.makedirs(RESULTS_DIR)
 
 
 class Provider:
@@ -56,6 +62,26 @@ class Provider:
 
         return html
 
+    def download_pdf(self, title: str, url: str) -> Tuple[bool, str]:
+        # url_hash = hashlib.md5(url.encode()).hexdigest()
+        filename = (
+            "".join(char for char in title if char.isascii())
+            .replace(" ", "_")
+            .replace(":", "-")
+        )
+        cache_file = os.path.join(DOWNLOAD_DIR, f"{filename}.pdf")
+        response = requests.get(url, stream=True)
+        if response.status_code == 200:
+            with open(cache_file, "wb") as pdf_file:
+                for chunk in response.iter_content(chunk_size=1024):
+                    if chunk:
+                        pdf_file.write(chunk)
+            print(f"Downloaded PDF to {cache_file}")
+            return True, cache_file
+        else:
+            print(f"Failed to download PDF from {url}")
+            return False, cache_file
+
     def get_soup(self, html: str) -> BeautifulSoup:
         """Parse the HTML content and return a BeautifulSoup object."""
         return BeautifulSoup(html, "html.parser")
@@ -63,10 +89,17 @@ class Provider:
     def get_html(self) -> BeautifulSoup:
         return self.get_soup(self.fetch_html(self.url))
 
+    def get_url_hash(self, url=None) -> str:
+        if url is None:
+            url = self.url
+        return hashlib.md5(url.encode()).hexdigest()
+
     def get_html_cache(self) -> BeautifulSoup:
         # Create a hash of the URL
-        url_hash = hashlib.md5(self.url.encode()).hexdigest()
-        cache_file = os.path.join(DATADIR, f"{self.__class__.__name__}_{url_hash}.html")
+        url_hash = self.get_url_hash()
+        cache_file = os.path.join(
+            SEARCH_DIR, f"{self.__class__.__name__}_{url_hash}.html"
+        )
 
         # Check if the file exists in the DATADIR
         if os.path.exists(cache_file):
