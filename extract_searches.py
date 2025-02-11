@@ -45,7 +45,7 @@ class GoogleScholarProvider(Provider):
             else None
         )
         try:
-            provider = ParseProvider(url, cache=True)
+            provider = parse_provider(url, cache=True)
         except Exception as e:
             print(f"Error in {url}: {e}")
             provider = EmptyProvider(url, cache=True)
@@ -76,11 +76,13 @@ class GoogleScholarProvider(Provider):
         for entry in self.soup.find_all("div", class_="gs_r gs_or gs_scl"):
             try:
                 res = self.parse_results(entry)
-                self.save_results(res)
+                #
+                parse_results_saver(res)
                 writer.write(res)
                 papers.append(res)
                 if download and res.get("download_url", None) is not None:
-                    ok, path = self.download_pdf(res["title"], res["download_url"])
+                    ok, path = parse_downloader(res)
+                    # ok, path = self.download_pdf(res["title"], res["download_url"])
                     writer.write(f"Downloading PDF to {path} | Status {ok}")
                 self.save_results(res)
             except Exception as e:
@@ -96,7 +98,45 @@ def get_domain(url) -> str:
     return parsed_url.netloc
 
 
-def ParseProvider(url, cache: bool = False):
+def parse_results_saver(res: dict):
+    url_hash = hashlib.md5(res["url"].encode()).hexdigest()
+    cache_file = os.path.join(RESULTS_DIR, f"{res['provider']}_{url_hash}.json")
+    with open(cache_file, "w") as f:
+        json.dump(res, f, indent=4, cls=DefaultEncoder)
+
+
+def parse_downloader(res: dict) -> Tuple[bool, str]:
+    title = res["title"]
+    url = res["download_url"]
+    try:
+        domain = get_domain(url)
+        class_ = None
+        match domain:
+            case "www.sciencedirect.com":
+                class_ = ScienceDirectProvider
+            case "arxiv.org":
+                class_ = ArxivProvider
+            case "ieeexplore.ieee.org":
+                class_ = IEEEXplore
+            case "link.springer.com":
+                class_ = SpringerProvider
+            case "www.mdpi.com":
+                class_ = MDPI
+            case "onlinelibrary.wiley.com":
+                class_ = Wiley
+            case "www.frontiersin.org":
+                class_ = Frontiers
+            case "dl.acm.org":
+                class_ = ACMProvider
+            case _:
+                class_ = EmptyProvider
+        return class_.download_pdf(title, url)
+    except Exception as e:
+        print(f"Error in {url}: {e}")
+        return False, ""
+
+
+def parse_provider(url, cache: bool = False):
     domain = get_domain(url)
     match domain:
         case "www.sciencedirect.com":

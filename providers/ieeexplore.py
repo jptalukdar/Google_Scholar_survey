@@ -12,3 +12,7 @@ class IEEEXplore(Provider):
 
     def fetch_html(self, url):
         return self.fetch_using_selenium(url)
+
+    @staticmethod
+    def download_url(title, url):
+        return Provider.download_using_chrome(title, url)

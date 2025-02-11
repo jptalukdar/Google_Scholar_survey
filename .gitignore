@@ -163,5 +163,7 @@ cython_debug/
 
 driver.zip
 driver/
-
+chromedriver/
 *.json
+*.zip
+*.exe

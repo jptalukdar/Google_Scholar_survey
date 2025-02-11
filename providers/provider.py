@@ -49,7 +49,8 @@ class Provider:
         response.raise_for_status()
         return response.text
 
-    def fetch_using_selenium(self, url: str) -> str:
+    @staticmethod
+    def fetch_using_selenium(url: str) -> str:
         options = Options()
         options.headless = True  # type: ignore
         driver = webdriver.Firefox(options=options)
@@ -62,7 +63,48 @@ class Provider:
 
         return html
 
-    def download_pdf(self, title: str, url: str) -> Tuple[bool, str]:
+    @staticmethod
+    def download_using_chrome(title, url) -> Tuple[bool, str]:
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
+
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument(f"--user-agent={user_agent}")
+        chrome_options.add_experimental_option(
+            "prefs", {"download.default_directory": DOWNLOAD_DIR}
+        )
+        driver = webdriver.Chrome(options=chrome_options)
+        try:
+            driver.get(url)
+            return True, driver.current_url
+        except Exception as e:
+            print(f"Error in {url}: {e}")
+            return False, str(e)
+
+    @staticmethod
+    def download_using_firefox(title, url) -> Tuple[bool, str]:
+        firefox_options = Options()
+        firefox_options.headless = True  # type: ignore
+        firefox_options.set_preference("browser.download.folderList", 2)
+        firefox_options.set_preference(
+            "browser.download.manager.showWhenStarting", False
+        )
+        firefox_options.set_preference("browser.download.dir", DOWNLOAD_DIR)
+        firefox_options.set_preference(
+            "browser.helperApps.neverAsk.saveToDisk",
+            "application/octet-stream,application/pdf",
+        )
+        driver = webdriver.Firefox(options=firefox_options)
+
+        try:
+            driver.get(url)
+            return True, driver.current_url
+        except Exception as e:
+            print(f"Error in {url}: {e}")
+            return False, str(e)
+
+    @staticmethod
+    def download_pdf(title: str, url: str) -> Tuple[bool, str]:
         # url_hash = hashlib.md5(url.encode()).hexdigest()
         filename = (
             "".join(char for char in title if char.isascii())
@@ -79,7 +121,9 @@ class Provider:
             print(f"Downloaded PDF to {cache_file}")
             return True, cache_file
         else:
-            print(f"Failed to download PDF from {url}")
+            print(
+                f"Failed to download PDF from {url} , {response.status_code}, {response.text}"
+            )
             return False, cache_file
 
     def get_soup(self, html: str) -> BeautifulSoup:
@@ -119,7 +163,10 @@ class Provider:
 
 class AbstractClassProvider(Provider):
     def get_abstract_by_class(self, class_=""):
-        abstract = self.soup.find("div", class_=class_)
+        return self.get_abstract_by_element("div", class_)
+
+    def get_abstract_by_element(self, element: str, class_=""):
+        abstract = self.soup.find(element, class_=class_)
         if abstract:
             return abstract.text.strip()
         else:

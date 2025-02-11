@@ -2,6 +2,11 @@ import streamlit as st
 from extract_searches import GoogleScholarProvider
 import pandas as pd
 from string import Template
+import os
+
+current_dir = os.path.abspath(os.getcwd())
+driver_bin = os.path.join(current_dir, "driver")
+os.environ["PATH"] += os.pathsep + driver_bin
 
 
 def main():
@@ -9,7 +14,7 @@ def main():
 
     query = st.text_input("Enter Query")
     query = query.replace(" ", "+")
-    url = "https://scholar.google.com/scholar?start=$index&q=$query&hl=en&as_sdt=0,5&as_ylo=$since_year"
+    url = "https://scholar.google.com/scholar?start=$index&q=$query&hl=en&as_sdt=0,5&as_ylo=$since_year&as_vis=1"
     container = st.container()
     start = container.number_input("Start", min_value=0, max_value=100, value=0)
     max = container.number_input("Max", min_value=start, max_value=100, value=10)

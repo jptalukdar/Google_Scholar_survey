@@ -13,4 +13,4 @@ class Frontiers(AbstractClassProvider):
 
 class MDPI(AbstractClassProvider):
     def get_abstract(self):
-        return super().get_abstract_by_class("html-abstract")
+        return super().get_abstract_by_element("section", "html-abstract")
