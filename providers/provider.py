@@ -112,6 +112,9 @@ class Provider:
             .replace(":", "-")
         )
         cache_file = os.path.join(DOWNLOAD_DIR, f"{filename}.pdf")
+        if os.path.exists(cache_file):
+            print(f"PDF already downloaded at {cache_file}")
+            return True, cache_file
         response = requests.get(url, stream=True)
         if response.status_code == 200:
             with open(cache_file, "wb") as pdf_file:
