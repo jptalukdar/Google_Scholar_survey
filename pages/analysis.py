@@ -68,7 +68,7 @@ def render_pdf_actions(check_pdf, open_pdf, i, data):
     if data["abstract"] != "Abstract not found":
         expander_c.write(f"{data['abstract']}")
     pdfLink = check_pdf(data)
-    print(pdfLink)
+    # print(pdfLink)
     container = expander_c.container(border=True)
     container.link_button("Visit", data["url"])
     if container.button("Open Notes", key=f"notes_{i}"):
