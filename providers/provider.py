@@ -4,18 +4,21 @@ from bs4 import BeautifulSoup
 import os
 import hashlib
 from selenium import webdriver
-from selenium.webdriver.firefox.options import Options
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from selenium.webdriver.chrome.options import Options as ChromeOptions
 
 DATADIR = ".data/"
 SEARCH_DIR = os.path.join(DATADIR, "searches")
 RESULTS_DIR = os.path.join(DATADIR, "results")
 DOWNLOAD_DIR = os.path.join(DATADIR, "pdfs")
+NOTES_DIR = os.path.join(DATADIR, "notes")
 # Ensure the data directory exists
 if not os.path.exists(DATADIR):
     os.makedirs(DATADIR)
     os.makedirs(SEARCH_DIR)
     os.makedirs(DOWNLOAD_DIR)
     os.makedirs(RESULTS_DIR)
+    os.makedirs(NOTES_DIR)
 
 
 class Provider:
@@ -51,7 +54,7 @@ class Provider:
 
     @staticmethod
     def fetch_using_selenium(url: str) -> str:
-        options = Options()
+        options = FirefoxOptions()
         options.headless = True  # type: ignore
         driver = webdriver.Firefox(options=options)
 
@@ -67,7 +70,7 @@ class Provider:
     def download_using_chrome(title, url) -> Tuple[bool, str]:
         user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
 
-        chrome_options = Options()
+        chrome_options = ChromeOptions()
         chrome_options.add_argument("--headless")
         chrome_options.add_argument(f"--user-agent={user_agent}")
         chrome_options.add_experimental_option(
@@ -83,7 +86,7 @@ class Provider:
 
     @staticmethod
     def download_using_firefox(title, url) -> Tuple[bool, str]:
-        firefox_options = Options()
+        firefox_options = FirefoxOptions()
         firefox_options.headless = True  # type: ignore
         firefox_options.set_preference("browser.download.folderList", 2)
         firefox_options.set_preference(
@@ -104,13 +107,17 @@ class Provider:
             return False, str(e)
 
     @staticmethod
-    def download_pdf(title: str, url: str) -> Tuple[bool, str]:
-        # url_hash = hashlib.md5(url.encode()).hexdigest()
-        filename = (
+    def generate_filename(title: str) -> str:
+        return (
             "".join(char for char in title if char.isascii())
             .replace(" ", "_")
             .replace(":", "-")
         )
+
+    @staticmethod
+    def download_pdf(title: str, url: str) -> Tuple[bool, str]:
+        # url_hash = hashlib.md5(url.encode()).hexdigest()
+        filename = Provider.generate_filename(title)
         cache_file = os.path.join(DOWNLOAD_DIR, f"{filename}.pdf")
         if os.path.exists(cache_file):
             print(f"PDF already downloaded at {cache_file}")
