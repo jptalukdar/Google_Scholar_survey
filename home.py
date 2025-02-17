@@ -17,7 +17,9 @@ def main():
     url = "https://scholar.google.com/scholar?start=$index&q=$query&hl=en&as_sdt=0,5&as_ylo=$since_year&as_vis=1"
     container = st.container()
     start = container.number_input("Start", min_value=0, max_value=100, value=0)
-    max = container.number_input("Max", min_value=start, max_value=100, value=10)
+    max = container.number_input(
+        "Max", min_value=start, max_value=200, value=10, step=10
+    )
     step = container.number_input("Step", min_value=1, value=10)
     since_year = st.number_input(
         "Since Year", min_value=1900, max_value=2025, value=2020

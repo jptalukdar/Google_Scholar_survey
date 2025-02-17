@@ -7,6 +7,6 @@ class ArxivProvider(Provider):
     def get_abstract(self) -> str:
         abstract = self.soup.find("blockquote", class_="abstract mathjax")
         if abstract:
-            return abstract.text.strip()
+            return abstract.text.strip()[9:]
         else:
             raise Exception("Abstract not found")
