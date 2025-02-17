@@ -167,3 +167,4 @@ chromedriver/
 *.json
 *.zip
 *.exe
+/chromedriver-win64

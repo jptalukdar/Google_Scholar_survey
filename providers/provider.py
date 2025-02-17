@@ -74,7 +74,13 @@ class Provider:
         chrome_options.add_argument("--headless")
         chrome_options.add_argument(f"--user-agent={user_agent}")
         chrome_options.add_experimental_option(
-            "prefs", {"download.default_directory": DOWNLOAD_DIR}
+            "prefs",
+            {
+                "download.default_directory": DOWNLOAD_DIR,
+                "download.prompt_for_download": False,
+                "download.directory_upgrade": True,
+                "plugins.plugins_disabled": ["Chrome PDF Viewer"],
+            },
         )
         driver = webdriver.Chrome(options=chrome_options)
         try:
