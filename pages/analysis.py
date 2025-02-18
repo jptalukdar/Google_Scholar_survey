@@ -3,6 +3,7 @@ import os
 import json
 import subprocess
 from providers.provider import DOWNLOAD_DIR, NOTES_DIR, Provider
+import re
 
 
 def fetch_all_jsons(directory):
@@ -57,6 +58,10 @@ json_data = fetch_all_jsons(".data/results/")
 json_data.sort(key=lambda x: x["title"])
 
 
+def replace_special_characters(text):
+    return re.sub(r"[^\w\s_\-]", "", text)
+
+
 # df = pd.DataFrame(json_data)
 # df = df[["title", "author", "abstract", "url"]]
 # # st.write(json_data)
@@ -72,7 +77,10 @@ def render_pdf_actions(check_pdf, open_pdf, i, data):
     container = expander_c.container(border=True)
     container.link_button("Visit", data["url"])
     if container.button("Open Notes", key=f"notes_{i}"):
-        note = Provider.generate_filename(data["title"]) + ".md"
+        note = Provider.generate_filename(data["title"])
+        print(note)
+        note = replace_special_characters(note) + ".md"
+        print(note)
         filepath = os.path.join(NOTES_DIR, note)
         if not os.path.exists(filepath):
             with open(filepath, "w") as f:
