@@ -168,3 +168,4 @@ chromedriver/
 *.zip
 *.exe
 *.7z
+/chromedriver-win64
