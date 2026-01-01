@@ -15,10 +15,10 @@ def fetch_empty_provider_urls(directory):
     return empty_provider_urls
 
 
-emptyProvider = fetch_empty_provider_urls(DIRECTORY)
+empty_provider = fetch_empty_provider_urls(DIRECTORY)
 
 domain_to_url = {}
-for url in emptyProvider:
+for url in empty_provider:
     domain = url.split("//")[-1].split("/")[0]
     domain_to_url[domain] = url
 

@@ -34,7 +34,7 @@ class SearchWorker:
                     return True
                 return False
 
-            #Define progress callback
+            # Define progress callback
             def on_progress(progress, count):
                 self.job.progress = progress
                 self.job.total_results = count
@@ -53,8 +53,8 @@ class SearchWorker:
 
             # Check if we stopped because of cancellation
             if stop_check():
-                 self.logger.info("Job execution stopped due to cancellation.")
-                 return
+                self.logger.info("Job execution stopped due to cancellation.")
+                return
 
             JobStorage.save_results(self.job_id, results)
             
