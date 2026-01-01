@@ -169,3 +169,5 @@ chromedriver/
 *.exe
 *.7z
 /chromedriver-win64
+error_log.txt
+empty_provider_urls.txt

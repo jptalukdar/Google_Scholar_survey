@@ -1,24 +1,20 @@
 from typing import Tuple
 import requests
+import json
+from json import JSONEncoder
 from bs4 import BeautifulSoup
 import os
 import hashlib
 from selenium import webdriver
 from selenium.webdriver.firefox.options import Options as FirefoxOptions
 from selenium.webdriver.chrome.options import Options as ChromeOptions
+from core.config import SEARCH_DIR, RESULTS_DIR, DOWNLOAD_DIR, NOTES_DIR, DATA_DIR
 
-DATADIR = ".data/"
-SEARCH_DIR = os.path.join(DATADIR, "searches")
-RESULTS_DIR = os.path.join(DATADIR, "results")
-DOWNLOAD_DIR = os.path.join(DATADIR, "pdfs")
-NOTES_DIR = os.path.join(DATADIR, "notes")
-# Ensure the data directory exists
-if not os.path.exists(DATADIR):
-    os.makedirs(DATADIR)
-    os.makedirs(SEARCH_DIR)
-    os.makedirs(DOWNLOAD_DIR)
-    os.makedirs(RESULTS_DIR)
-    os.makedirs(NOTES_DIR)
+
+class DefaultEncoder(JSONEncoder):
+    def default(self, o):
+        return o.__dict__
+
 
 
 class Provider:
