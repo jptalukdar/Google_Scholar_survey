@@ -3,59 +3,119 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>SLR Partner Sidebar</title>
+    <title>SLR Research Partner</title>
     <link rel="stylesheet" href="styles/main.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 
 <body>
     <div class="app-container">
+        <!-- Header -->
         <header>
-            <h1>SLR Partner</h1>
+            <h1>🔬 SLR Partner</h1>
             <div class="header-actions">
                 <div id="connection-status" class="status-indicator">Connecting...</div>
-                <button id="reconnect-btn" class="icon-btn" title="Reconnect"
-                    style="border:none; padding:4px;">🔄</button>
+                <button id="reconnect-btn" class="icon-btn" title="Reconnect">🔄</button>
             </div>
         </header>
 
-        <div class="project-selector">
+        <!-- Project Selector -->
+        <div class="project-bar">
             <select id="project-select">
-                <option value="" disabled selected>Select Project...</option>
-                <option value="new">+ New Project</option>
+                <option value="default">Default Project</option>
             </select>
+            <button id="new-project-btn" class="icon-btn" title="New Project">➕</button>
+            <span id="project-stats" class="stats-text">0 papers</span>
         </div>
 
-        <div class="tabs">
-            <button class="tab-btn active" data-tab="papers">Papers</button>
-            <button class="tab-btn" data-tab="queries">Queries</button>
+        <!-- Main Tabs -->
+        <div class="main-tabs">
+            <button class="main-tab-btn active" data-tab="assistant">🧭 Assistant</button>
+            <button class="main-tab-btn" data-tab="database">📚 Database</button>
         </div>
 
-        <div id="papers-panel" class="tab-content active">
-            <div class="stats-bar">
-                <span id="paper-count">0 papers</span>
-                <button id="download-btn" class="icon-btn" title="Download BibTeX/CSV">📥</button>
+        <!-- Tab 1: Assistant (Discovery Engine) -->
+        <div id="assistant-panel" class="main-tab-content active">
+            <!-- Input Section -->
+            <div class="section">
+                <label for="abstract-input">Idea / Abstract / Problem</label>
+                <textarea id="abstract-input" rows="5"
+                    placeholder="Paste your research idea, problem statement, or an abstract from a paper you like..."></textarea>
             </div>
-            <div id="papers-list" class="items-list">
-                <!-- Papers will be injected here -->
-                <div class="empty-state">
-                    <p>No papers selected yet.</p>
-                    <p class="hint">Click the checkmark next to search results to add them.</p>
+
+            <div class="section">
+                <label>Search Strategy</label>
+                <select id="strategy-select">
+                    <option value="specific">🎯 Specific (Technical terms & methods)</option>
+                    <option value="broad">🌐 Broad (High-level keywords)</option>
+                    <option value="snowball">📖 Snowball (Seminal papers)</option>
+                </select>
+            </div>
+
+            <!-- Site Filters -->
+            <div class="section">
+                <label>Site Restrictions</label>
+                <div class="checkbox-group">
+                    <label><input type="checkbox" value="arxiv.org"> arXiv</label>
+                    <label><input type="checkbox" value="ieeexplore.ieee.org"> IEEE</label>
+                    <label><input type="checkbox" value="dl.acm.org"> ACM</label>
+                    <label><input type="checkbox" value="sciencedirect.com"> ScienceDirect</label>
+                    <label><input type="checkbox" value="link.springer.com"> Springer</label>
+                </div>
+            </div>
+
+            <!-- API Key -->
+            <div class="section">
+                <label for="api-key-input">Gemini API Key</label>
+                <input type="password" id="api-key-input" placeholder="Enter your Gemini API key..." />
+                <small>Required for query generation. <a href="https://aistudio.google.com/app/apikey"
+                        target="_blank">Get one free</a></small>
+            </div>
+
+            <button id="generate-btn" class="btn-primary">✨ Generate Search Strategies</button>
+
+            <!-- Query Results -->
+            <div id="query-results" class="query-cards">
+                <!-- Generated queries will appear here -->
+            </div>
+        </div>
+
+        <!-- Tab 2: Database (Curation) -->
+        <div id="database-panel" class="main-tab-content">
+            <!-- Sub-tabs -->
+            <div class="sub-tabs">
+                <button class="sub-tab-btn active" data-subtab="papers">Papers</button>
+                <button class="sub-tab-btn" data-subtab="history">Query History</button>
+            </div>
+
+            <!-- Papers List -->
+            <div id="papers-subtab" class="sub-tab-content active">
+                <div class="search-bar">
+                    <input type="text" id="paper-search" placeholder="Search saved papers..." />
+                </div>
+                <div id="papers-list" class="items-list">
+                    <div class="empty-state">
+                        <p>No papers saved yet.</p>
+                        <p class="hint">Use the Assistant tab or visit Google Scholar to add papers.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Query History -->
+            <div id="history-subtab" class="sub-tab-content">
+                <div id="query-history-list" class="items-list">
+                    <div class="empty-state">
+                        <p>No query history yet.</p>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div id="queries-panel" class="tab-content">
-            <div id="queries-list" class="items-list">
-                <!-- Queries will be injected here -->
-            </div>
-        </div>
-
         <!-- New Project Modal -->
-        <div id="new-project-modal" class="modal" style="display:none;">
+        <div id="new-project-modal" class="modal">
             <div class="modal-content">
                 <h3>Create New Project</h3>
-                <input type="text" id="new-project-id" placeholder="Project ID (e.g., my-review)" />
+                <input type="text" id="new-project-id" placeholder="Project ID (e.g., thesis-ch1)" />
                 <input type="text" id="new-project-name" placeholder="Project Name" />
                 <div class="modal-actions">
                     <button id="cancel-project-btn" class="btn-secondary">Cancel</button>
@@ -64,7 +124,10 @@
             </div>
         </div>
     </div>
+
     <script src="scripts/api.js"></script>
+    <script src="scripts/assistant.js"></script>
+    <script src="scripts/database.js"></script>
     <script src="scripts/sidebar.js"></script>
 </body>
 

@@ -1,12 +1,21 @@
-// Content Script for Google Scholar
+// Content Script for Google Scholar - Simplified (no duplicate check)
 
-function init() {
+const API_BASE = 'http://localhost:8000';
+let currentProjectId = 'default';
+
+async function init() {
     console.log('SLR Partner: Content script loaded');
-    injectCheckmarks();
+
+    // Get current project from storage
+    const { currentProject } = await chrome.storage.local.get('currentProject');
+    currentProjectId = currentProject || 'default';
+
+    // Inject buttons
+    injectAddButtons();
 
     // Observer for pagination/dynamic content
-    const observer = new MutationObserver((mutations) => {
-        injectCheckmarks();
+    const observer = new MutationObserver(() => {
+        injectAddButtons();
     });
 
     const mainContent = document.getElementById('gs_res_ccl_mid');
@@ -15,35 +24,29 @@ function init() {
     }
 }
 
-function injectCheckmarks() {
+function injectAddButtons() {
     const results = document.querySelectorAll('.gs_r.gs_or.gs_scl');
 
     results.forEach(result => {
-        if (result.querySelector('.slr-checkmark')) return;
+        if (result.querySelector('.slr-add-btn')) return;
 
         const paperData = extractPaperData(result);
         if (!paperData) return;
 
-        const checkmark = document.createElement('div');
-        checkmark.className = 'slr-checkmark';
-        checkmark.title = 'Add to Literature Review';
-        checkmark.innerHTML = '&#10003;'; // Checkmark symbol
+        const btn = document.createElement('button');
+        btn.className = 'slr-add-btn new';
+        btn.innerHTML = '+ Add';
 
-        // Check if already saved (sync state needs async check)
-        // For now, just click handler
-
-        checkmark.addEventListener('click', (e) => {
+        btn.addEventListener('click', (e) => {
             e.stopPropagation();
             e.preventDefault();
-            toggleSelection(checkmark, paperData);
+            handleButtonClick(btn, paperData);
         });
 
-        // Insert before the title
-        const titleHeader = result.querySelector('.gs_ri');
-        if (titleHeader) {
-            titleHeader.style.position = 'relative';
-            // Prepend to the result item body (gs_ri)
-            titleHeader.insertBefore(checkmark, titleHeader.firstChild);
+        // Insert after the links row
+        const linksRow = result.querySelector('.gs_fl');
+        if (linksRow) {
+            linksRow.appendChild(btn);
         }
     });
 }
@@ -51,14 +54,25 @@ function injectCheckmarks() {
 function extractPaperData(element) {
     try {
         const titleLink = element.querySelector('.gs_rt a');
-        const title = titleLink ? titleLink.innerText : element.querySelector('.gs_rt').innerText;
+        const title = titleLink ? titleLink.innerText : element.querySelector('.gs_rt')?.innerText || '';
         const url = titleLink ? titleLink.href : '';
-        const id = element.getAttribute('data-cid') || element.getAttribute('data-rp') || url;
+        const id = element.getAttribute('data-cid') || element.getAttribute('data-rp') || url || title;
 
-        // Authors and snippet
+        if (!title) return null;
+
+        // Authors and venue
         const metaDiv = element.querySelector('.gs_a');
-        const authors = metaDiv ? metaDiv.innerText.split('-')[0].trim() : '';
+        let authors = '';
+        let year = '';
+        if (metaDiv) {
+            const metaText = metaDiv.innerText;
+            const parts = metaText.split(' - ');
+            authors = parts[0]?.trim() || '';
+            const yearMatch = metaText.match(/\b(19|20)\d{2}\b/);
+            if (yearMatch) year = yearMatch[0];
+        }
 
+        // Abstract snippet
         const snippetDiv = element.querySelector('.gs_rs');
         const abstract = snippetDiv ? snippetDiv.innerText : '';
 
@@ -67,10 +81,11 @@ function extractPaperData(element) {
         const pdfUrl = pdfLink ? pdfLink.href : null;
 
         return {
-            id,
+            id: id.toString(),
             title,
             url,
             authors,
+            year,
             abstract,
             pdfUrl,
             source: 'Google Scholar'
@@ -81,14 +96,76 @@ function extractPaperData(element) {
     }
 }
 
-function toggleSelection(element, paperData) {
-    element.classList.toggle('selected');
-    const isSelected = element.classList.contains('selected');
+async function handleButtonClick(btn, paperData) {
+    // If already saved, handle removal
+    if (btn.classList.contains('saved')) {
+        btn.classList.remove('saved');
+        btn.classList.add('saving');
+        btn.innerHTML = '<span class="spinner"></span>';
 
-    chrome.runtime.sendMessage({
-        type: isSelected ? 'PAPER_SELECTED' : 'PAPER_REMOVED',
-        payload: paperData
-    });
+        try {
+            await fetch(`${API_BASE}/extension/papers/${encodeURIComponent(paperData.id)}`, {
+                method: 'DELETE'
+            });
+
+            btn.classList.remove('saving');
+            btn.classList.add('new');
+            btn.innerHTML = '+ Add';
+
+            chrome.runtime.sendMessage({ type: 'PAPERS_UPDATED' }).catch(() => { });
+        } catch (e) {
+            console.error('Failed to remove paper:', e);
+            btn.classList.remove('saving');
+            btn.classList.add('saved');
+            btn.innerHTML = '✓ Saved';
+        }
+        return;
+    }
+
+    // Add new paper
+    btn.classList.remove('new');
+    btn.classList.add('saving');
+    btn.innerHTML = '<span class="spinner"></span> Saving...';
+
+    try {
+        const response = await fetch(`${API_BASE}/extension/papers`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                id: paperData.id,
+                title: paperData.title,
+                url: paperData.url,
+                authors: paperData.authors || '',
+                abstract: paperData.abstract || '',
+                pdfUrl: paperData.pdfUrl || null,
+                source: paperData.source || 'Google Scholar',
+                project_id: currentProjectId,
+                status: 'unread'
+            })
+        });
+
+        if (response.ok) {
+            btn.classList.remove('saving');
+            btn.classList.add('saved');
+            btn.innerHTML = '✓ Saved';
+
+            // Update local storage too
+            const { savedPapers = [] } = await chrome.storage.local.get('savedPapers');
+            if (!savedPapers.find(p => p.id === paperData.id)) {
+                savedPapers.push({ ...paperData, savedAt: new Date().toISOString() });
+                await chrome.storage.local.set({ savedPapers });
+            }
+
+            chrome.runtime.sendMessage({ type: 'PAPERS_UPDATED' }).catch(() => { });
+        } else {
+            throw new Error('Save failed');
+        }
+    } catch (e) {
+        console.error('Failed to save paper:', e);
+        btn.classList.remove('saving');
+        btn.classList.add('new');
+        btn.innerHTML = '+ Add';
+    }
 }
 
 // Run init

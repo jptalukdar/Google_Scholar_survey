@@ -1,147 +1,155 @@
-// Sidebar Logic
-
-// Import API if we were using modules, but in basic chrome ext we might just include it in HTML before this script
-// validation: ensure api is available
-if (typeof api === 'undefined') {
-    console.error('API module not loaded');
-}
-
-// State
-let currentProject = 'default';
-let papers = [];
+// Main Sidebar Logic - Tab switching, project management, connection
 
 document.addEventListener('DOMContentLoaded', async () => {
     initTabs();
+    initProjectManagement();
     await checkConnection();
-    await loadPapers();
+    await loadProjects();
 
-    // Listen for updates from background/content scripts
-    chrome.runtime.onMessage.addListener((message) => {
-        if (message.type === 'PAPERS_UPDATED') {
-            loadPapers();
-        }
-    });
+    // Initialize tab modules
+    if (typeof initAssistant === 'function') initAssistant();
+    if (typeof initDatabase === 'function') initDatabase();
 
     // Reconnect button
     document.getElementById('reconnect-btn').addEventListener('click', async () => {
         const statusEl = document.getElementById('connection-status');
-        const btn = document.getElementById('reconnect-btn');
-
         statusEl.textContent = 'Connecting...';
         statusEl.classList.remove('connected');
-
-        // Add rotation animation
-        btn.style.transition = 'transform 0.5s';
-        btn.style.transform = 'rotate(360deg)';
-
         await checkConnection();
+    });
 
-        // Reset rotation
-        setTimeout(() => {
-            btn.style.transition = 'none';
-            btn.style.transform = 'none';
-        }, 500);
+    // Listen for updates from content/background
+    chrome.runtime.onMessage.addListener((message) => {
+        if (message.type === 'PAPERS_UPDATED') {
+            if (typeof loadPapers === 'function') loadPapers();
+        }
     });
 });
 
+// Main tab switching
 function initTabs() {
-    const tabs = document.querySelectorAll('.tab-btn');
-    tabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            // Remove active class from all
-            document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    // Main tabs (Assistant / Database)
+    document.querySelectorAll('.main-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.main-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.main-tab-content').forEach(c => c.classList.remove('active'));
 
-            // Add active to clicked
-            tab.classList.add('active');
-            const targetId = tab.dataset.tab + '-panel';
-            document.getElementById(targetId).classList.add('active');
+            btn.classList.add('active');
+            document.getElementById(`${btn.dataset.tab}-panel`).classList.add('active');
+        });
+    });
+
+    // Sub-tabs in Database
+    document.querySelectorAll('.sub-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.sub-tab-content').forEach(c => c.classList.remove('active'));
+
+            btn.classList.add('active');
+            document.getElementById(`${btn.dataset.subtab}-subtab`).classList.add('active');
         });
     });
 }
 
-async function checkConnection() {
-    const statusEl = document.getElementById('connection-status');
-    const isConnected = await api.healthCheck();
+// Project management
+function initProjectManagement() {
+    const modal = document.getElementById('new-project-modal');
+    const newBtn = document.getElementById('new-project-btn');
+    const cancelBtn = document.getElementById('cancel-project-btn');
+    const createBtn = document.getElementById('create-project-btn');
+    const projectSelect = document.getElementById('project-select');
 
-    if (isConnected) {
-        statusEl.textContent = 'Connected';
-        statusEl.classList.add('connected');
-    } else {
-        statusEl.textContent = 'Backend Offline';
-        statusEl.classList.remove('connected');
-    }
-}
+    newBtn.addEventListener('click', () => {
+        modal.classList.add('show');
+    });
 
-async function loadPapers() {
-    // Try to load from API, fallback to local storage
-    try {
-        // First check local storage for unsaved papers
-        const { savedPapers = [] } = await chrome.storage.local.get('savedPapers');
-        papers = savedPapers;
+    cancelBtn.addEventListener('click', () => {
+        modal.classList.remove('show');
+    });
 
-        // Also try to sync with backend if connected
-        try {
-            // For now, let's just display what's in local storage as that's what content script saves to via background
-            // In full impl, we would sync these.
+    createBtn.addEventListener('click', async () => {
+        const id = document.getElementById('new-project-id').value.trim();
+        const name = document.getElementById('new-project-name').value.trim();
 
-            // TODO: Fetch from backend and merge
-            const remotePapers = await api.getPapers(currentProject);
-            // Merge logic... for now just replace if remote has data
-            if (remotePapers.length > 0) {
-                // Simple merge logic needed
-            }
-        } catch (e) {
-            console.log('Backend sync failed, showing local data');
+        if (!id || !name) {
+            showNotification('Please fill in both fields', 'warning');
+            return;
         }
 
-        renderPapers();
+        try {
+            const response = await fetch('http://localhost:8000/extension/projects', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, name, description: '' })
+            });
+
+            if (response.ok) {
+                await loadProjects();
+                projectSelect.value = id;
+                modal.classList.remove('show');
+                document.getElementById('new-project-id').value = '';
+                document.getElementById('new-project-name').value = '';
+                showNotification('Project created!', 'success');
+
+                // Reload data for new project
+                if (typeof loadPapers === 'function') loadPapers();
+                if (typeof loadQueryHistory === 'function') loadQueryHistory();
+            } else {
+                const error = await response.json();
+                showNotification(error.detail || 'Failed to create project', 'error');
+            }
+        } catch (e) {
+            showNotification('Failed to create project', 'error');
+        }
+    });
+
+    // Project switch
+    projectSelect.addEventListener('change', async () => {
+        if (typeof loadPapers === 'function') await loadPapers();
+        if (typeof loadQueryHistory === 'function') await loadQueryHistory();
+    });
+}
+
+async function loadProjects() {
+    const select = document.getElementById('project-select');
+
+    try {
+        const response = await fetch('http://localhost:8000/extension/projects');
+        if (response.ok) {
+            const projects = await response.json();
+
+            // Preserve current selection
+            const current = select.value;
+
+            select.innerHTML = projects.map(p =>
+                `<option value="${p.id}">${p.name}</option>`
+            ).join('');
+
+            // Restore selection if possible
+            if (current && [...select.options].some(o => o.value === current)) {
+                select.value = current;
+            }
+        }
     } catch (e) {
-        console.error('Error loading papers:', e);
+        console.error('Failed to load projects:', e);
     }
 }
 
-function renderPapers() {
-    const listEl = document.getElementById('papers-list');
-    const countEl = document.getElementById('paper-count');
+async function checkConnection() {
+    const statusEl = document.getElementById('connection-status');
 
-    countEl.textContent = `${papers.length} papers`;
-
-    if (papers.length === 0) {
-        listEl.innerHTML = `
-        <div class="empty-state">
-          <p>No papers selected.</p>
-          <p class="hint">Search on Google Scholar and click checkmarks to add.</p>
-        </div>`;
-        return;
+    try {
+        const response = await fetch('http://localhost:8000/extension/health');
+        if (response.ok) {
+            statusEl.textContent = 'Connected';
+            statusEl.classList.add('connected');
+            return true;
+        }
+    } catch (e) {
+        console.error('Connection check failed:', e);
     }
 
-    listEl.innerHTML = papers.map(paper => `
-        <div class="paper-card" id="card-${paper.id}">
-            <div class="paper-title" title="${paper.title}">${paper.title}</div>
-            <div class="paper-authors">${paper.authors}</div>
-            <div class="actions">
-                ${paper.pdfUrl ? `<a href="${paper.pdfUrl}" target="_blank" class="icon-btn" title="Open PDF">📄</a>` : ''}
-                <a href="${paper.url}" target="_blank" class="icon-btn" title="View Link">🔗</a>
-                <button class="icon-btn remove-btn" onclick="removePaper('${paper.id}')" title="Remove">✕</button>
-            </div>
-        </div>
-    `).join('');
-
-    // Attach event listeners for dynamic buttons if needed, or use delegation
-    // Using inline onclick for simplicity in template, but need to expose function
-    window.removePaper = removePaper;
-}
-
-async function removePaper(id) {
-    // Remove from local storage
-    const index = papers.findIndex(p => p.id === id);
-    if (index !== -1) {
-        papers.splice(index, 1);
-        await chrome.storage.local.set({ savedPapers: papers });
-        renderPapers();
-
-        // Also try to delete from backend
-        // await api.deletePaper(id);
-    }
+    statusEl.textContent = 'Offline';
+    statusEl.classList.remove('connected');
+    return false;
 }
