@@ -28,12 +28,22 @@ This project uses a client-server architecture:
    - Windows: Run `setup_selenium.bat`
    - Linux: Run `setup_selenium.sh`
 
-## Running the System
+### Running Backend and Frontend Separately
 
-Use the unified startup script to launch both the backend server and frontend UI:
+If you prefer to run them in separate terminals:
 
+**Backend Only:**
 ```bash
-python start_system.py
+python start_backend.py
+# OR
+run_backend.bat
+```
+
+**Frontend Only:**
+```bash
+python start_frontend.py
+# OR
+run_frontend.bat
 ```
 
 - **Frontend**: http://localhost:8501

@@ -1,0 +1,44 @@
+{
+    "manifest_version": 3,
+    "name": "SLR Research Partner",
+    "version": "1.0",
+    "description": "Your AI Research Partner for Systematic Literature Reviews on Google Scholar",
+    "permissions": [
+        "activeTab",
+        "storage",
+        "scripting",
+        "sidePanel"
+    ],
+    "host_permissions": [
+        "*://scholar.google.com/*",
+        "http://localhost:8000/*"
+    ],
+    "action": {
+        "default_title": "Open SLR Partner"
+    },
+    "side_panel": {
+        "default_path": "sidebar.html"
+    },
+    "background": {
+        "service_worker": "scripts/background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "*://scholar.google.com/*"
+            ],
+            "js": [
+                "scripts/content.js"
+            ],
+            "css": [
+                "styles/main.css"
+            ],
+            "run_at": "document_end"
+        }
+    ],
+    "icons": {
+        "16": "icons/icon16.png",
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png"
+    }
+}

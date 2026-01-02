@@ -40,34 +40,79 @@ class Provider:
         )
 
     def fetch_html(self, url: str) -> str:
-        """Fetch the HTML content of the given URL."""
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
-        }
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        return response.text
+        """Fetch the HTML content of the given URL using Selenium."""
+        return self.fetch_using_selenium(url)
 
     @staticmethod
     def fetch_using_selenium(url: str) -> str:
-        options = FirefoxOptions()
-        options.headless = True  # type: ignore
-        driver = webdriver.Firefox(options=options)
+        """
+        Fetch HTML using Selenium with fallback logic.
+        Tries Firefox first, then Chrome.
+        Enables JavaScript and mimics a real user browser.
+        """
+        # Ensure driver directory is in path for easy finding
+        driver_dir = os.path.abspath(os.path.join(os.getcwd(), "driver"))
+        if os.path.exists(driver_dir) and driver_dir not in os.environ["PATH"]:
+            os.environ["PATH"] += os.pathsep + driver_dir
 
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36"
+
+        # Try Firefox first
         try:
-            driver.get(url)
-            html = driver.page_source
-        finally:
-            driver.quit()
+            options = FirefoxOptions()
+            # options.add_argument("--headless") # GUI mode enabled
+            
+            # Enable JavaScript and other features explicitly
+            options.set_preference("javascript.enabled", True)
+            options.set_preference("dom.webdriver.enabled", False) # Anti-detection
+            options.set_preference("general.useragent.override", user_agent)
+            
+            driver = webdriver.Firefox(options=options)
+            try:
+                driver.get(url)
+                return driver.page_source
+            finally:
+                driver.quit()
+        except Exception as e:
+            print(f"Firefox Selenium failed, trying Chrome: {e}")
+            
+        # Fallback to Chrome
+        try:
+            options = ChromeOptions()
+            # options.add_argument("--headless") # GUI mode enabled
+            options.add_argument(f"--user-agent={user_agent}")
+            
+            # Enable JavaScript (default) & other features
+            options.add_argument("--enable-javascript")
+            options.add_argument("--window-size=1920,1080")
+            options.add_argument("--start-maximized")
+            options.add_argument("--disable-blink-features=AutomationControlled") # Anti-detection
+            
+            options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            options.add_experimental_option('useAutomationExtension', False)
 
-        return html
+            driver = webdriver.Chrome(options=options)
+            try:
+                driver.get(url)
+                return driver.page_source
+            finally:
+                driver.quit()
+        except Exception as e:
+            print(f"Chrome Selenium failed: {e}")
+            
+        # Ultimate fallback to requests
+        print("Falling back to requests...")
+        headers = {"User-Agent": user_agent}
+        response = requests.get(url, headers=headers, timeout=10)
+        response.raise_for_status()
+        return response.text
 
     @staticmethod
     def download_using_chrome(title, url) -> Tuple[bool, str]:
         user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36"
 
         chrome_options = ChromeOptions()
-        chrome_options.add_argument("--headless")
+        # chrome_options.add_argument("--headless")
         chrome_options.add_argument(f"--user-agent={user_agent}")
         chrome_options.add_experimental_option(
             "prefs",
@@ -89,7 +134,7 @@ class Provider:
     @staticmethod
     def download_using_firefox(title, url) -> Tuple[bool, str]:
         firefox_options = FirefoxOptions()
-        firefox_options.headless = True  # type: ignore
+        # firefox_options.headless = True  # type: ignore
         firefox_options.set_preference("browser.download.folderList", 2)
         firefox_options.set_preference(
             "browser.download.manager.showWhenStarting", False

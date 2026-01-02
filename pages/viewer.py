@@ -3,6 +3,10 @@ import json
 import streamlit as st
 import streamlit.components.v1 as components
 from providers.provider import RESULTS_DIR
+from shared.ui import sidebar_api_key
+
+st.set_page_config(page_title="Viewer", page_icon="👁️", layout="wide")
+api_key = sidebar_api_key()
 
 
 def read_json_files(directory):

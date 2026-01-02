@@ -4,6 +4,10 @@ import json
 import subprocess
 from providers.provider import DOWNLOAD_DIR, NOTES_DIR, Provider
 import re
+from shared.ui import sidebar_api_key
+
+st.set_page_config(page_title="Analysis", page_icon="🧬", layout="wide")
+api_key = sidebar_api_key()
 
 
 def fetch_all_jsons(directory):

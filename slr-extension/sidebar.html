@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>SLR Partner Sidebar</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="app-container">
+        <header>
+            <h1>SLR Partner</h1>
+            <div class="header-actions">
+                <div id="connection-status" class="status-indicator">Connecting...</div>
+                <button id="reconnect-btn" class="icon-btn" title="Reconnect"
+                    style="border:none; padding:4px;">🔄</button>
+            </div>
+        </header>
+
+        <div class="project-selector">
+            <select id="project-select">
+                <option value="" disabled selected>Select Project...</option>
+                <option value="new">+ New Project</option>
+            </select>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="papers">Papers</button>
+            <button class="tab-btn" data-tab="queries">Queries</button>
+        </div>
+
+        <div id="papers-panel" class="tab-content active">
+            <div class="stats-bar">
+                <span id="paper-count">0 papers</span>
+                <button id="download-btn" class="icon-btn" title="Download BibTeX/CSV">📥</button>
+            </div>
+            <div id="papers-list" class="items-list">
+                <!-- Papers will be injected here -->
+                <div class="empty-state">
+                    <p>No papers selected yet.</p>
+                    <p class="hint">Click the checkmark next to search results to add them.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="queries-panel" class="tab-content">
+            <div id="queries-list" class="items-list">
+                <!-- Queries will be injected here -->
+            </div>
+        </div>
+
+        <!-- New Project Modal -->
+        <div id="new-project-modal" class="modal" style="display:none;">
+            <div class="modal-content">
+                <h3>Create New Project</h3>
+                <input type="text" id="new-project-id" placeholder="Project ID (e.g., my-review)" />
+                <input type="text" id="new-project-name" placeholder="Project Name" />
+                <div class="modal-actions">
+                    <button id="cancel-project-btn" class="btn-secondary">Cancel</button>
+                    <button id="create-project-btn" class="btn-primary">Create</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="scripts/api.js"></script>
+    <script src="scripts/sidebar.js"></script>
+</body>
+
+</html>

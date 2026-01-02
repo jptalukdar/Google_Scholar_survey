@@ -1,6 +1,7 @@
 import streamlit as st
 import time
 from client import ApiClient
+from shared.ui import sidebar_api_key
 
 st.set_page_config(
     page_title="Scholar Survey",
@@ -8,9 +9,11 @@ st.set_page_config(
     layout="centered"
 )
 
-# Initialize API Client
+# Initialize API Client and Sidebar
 if 'api_client' not in st.session_state:
     st.session_state.api_client = ApiClient()
+
+api_key = sidebar_api_key()
 
 st.title("🎓 Google Scholar Survey")
 st.markdown("Automated systematic literature review and data extraction.")

@@ -4,31 +4,58 @@ import time
 import os
 import json
 from client import ApiClient
+from shared.ui import sidebar_api_key
 
 st.set_page_config(page_title="SLR Wizard", page_icon="📚", layout="wide")
 
 # Sidebar - API Key Configuration
-st.sidebar.title("🔑 AI Configuration")
-st.sidebar.markdown("""
-Enter your Gemini API key to enable AI features.
-
-**[Get your API key here →](https://aistudio.google.com/app/apikey)**
-""")
-
-api_key = st.sidebar.text_input(
-    "Gemini API Key",
-    type="password",
-    help="Your Google AI Studio API key for Gemini"
-)
-
-if not api_key:
-    st.sidebar.warning("Please enter an API key to use the SLR Wizard.")
+api_key = sidebar_api_key()
 
 provider = st.sidebar.selectbox(
     "LLM Provider",
     options=["gemini"],
     help="More providers coming soon (Ollama, OpenAI)"
 )
+
+st.sidebar.divider()
+
+# --- Session Management ---
+st.sidebar.header("📂 Session")
+
+# Initialize session metadata
+if "session_name" not in st.session_state:
+    st.session_state.session_name = f"SLR_{int(time.time())}"
+if "session_created_at" not in st.session_state:
+    st.session_state.session_created_at = time.strftime("%Y-%m-%d %H:%M:%S")
+
+# Session Naming
+st.session_state.session_name = st.sidebar.text_input(
+    "Session Name", 
+    value=st.session_state.session_name,
+    help="Name your session for easier identification in exports"
+)
+
+# Resume Session
+uploaded_file = st.sidebar.file_uploader(
+    "📤 Resume Session",
+    type=["json"],
+    help="Upload a previously exported session JSON file"
+)
+
+if uploaded_file is not None:
+    try:
+        loaded_state = json.load(uploaded_file)
+        # Basic validation
+        if "slr_step" in loaded_state:
+            for key, value in loaded_state.items():
+                st.session_state[key] = value
+            st.toast(f"Session '{st.session_state.session_name}' loaded successfully!")
+            time.sleep(1)
+            st.rerun()
+        else:
+            st.sidebar.error("Invalid session file.")
+    except Exception as e:
+        st.sidebar.error(f"Error loading session: {e}")
 
 st.sidebar.divider()
 
@@ -61,10 +88,16 @@ st.title("📚 Systematic Literature Review Wizard (Client-Server)")
 # Initialize session state
 if "slr_step" not in st.session_state:
     st.session_state.slr_step = 1
+if "abstract" not in st.session_state:
+    st.session_state.abstract = ""
 if "research_questions" not in st.session_state:
     st.session_state.research_questions = None
 if "queries" not in st.session_state:
     st.session_state.queries = None
+if "max_results" not in st.session_state:
+    st.session_state.max_results = 20
+if "since_year" not in st.session_state:
+    st.session_state.since_year = 2020
 if "job_ids" not in st.session_state:
     st.session_state.job_ids = None
 if "results" not in st.session_state:
@@ -73,12 +106,18 @@ if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
 # Step indicator
+# Step indicator
 steps = ["Input Abstract", "Research Questions", "Search Queries", "Execute Search", "Results"]
 cols = st.columns(len(steps))
+
 for i, (col, step) in enumerate(zip(cols, steps)):
-    if i + 1 < st.session_state.slr_step:
-        col.success(f"✅ {step}")
-    elif i + 1 == st.session_state.slr_step:
+    step_num = i + 1
+    if step_num < st.session_state.slr_step:
+        # Make completed steps clickable
+        if col.button(f"✅ {step}", key=f"nav_step_{i}"):
+            st.session_state.slr_step = step_num
+            st.rerun()
+    elif step_num == st.session_state.slr_step:
         col.info(f"👉 {step}")
     else:
         col.write(f"⬜ {step}")
@@ -91,16 +130,17 @@ if st.session_state.slr_step == 1:
     
     abstract = st.text_area(
         "Research Abstract or Topic Description",
+        value=st.session_state.abstract,
         height=200,
         placeholder="Paste your research abstract..."
     )
+    st.session_state.abstract = abstract
     
     if st.button("Generate Questions →", type="primary", disabled=not api_key or not abstract):
         with st.spinner("Generating research questions..."):
             try:
                 questions = client.generate_questions(abstract, api_key, provider)
                 st.session_state.research_questions = questions
-                st.session_state.abstract = abstract
                 st.session_state.slr_step = 2
                 st.rerun()
             except Exception as e:
@@ -162,23 +202,51 @@ elif st.session_state.slr_step == 3:
     st.subheader("Step 3: Review Search Queries")
     
     queries = st.session_state.queries
-    edited_queries = []
+    # We need to iterate over a copy or by index to safely modify the list if needed
+    # But for Streamlit, reruns handle the state update.
+    
+    # Render existing queries with delete buttons
+    indices_to_remove = []
     
     for i, q in enumerate(queries):
-        val = st.text_input(f"Query {i+1}", value=q['query'], key=f"q_{i}")
-        q['query'] = val
-        edited_queries.append(q)
+        col_q, col_del = st.columns([10, 1])
+        with col_q:
+            val = st.text_input(f"Query {i+1}", value=q['query'], key=f"q_{i}", label_visibility="collapsed")
+            queries[i]['query'] = val
+        with col_del:
+            if st.button("🗑️", key=f"del_q_{i}", help="Remove this query"):
+                indices_to_remove.append(i)
     
-    st.session_state.queries = edited_queries
+    # Process removals
+    if indices_to_remove:
+        for index in sorted(indices_to_remove, reverse=True):
+            del st.session_state.queries[index]
+        st.rerun()
+        
+    # Add new query button
+    if st.button("➕ Add Query"):
+        st.session_state.queries.append({"query": "", "sites": selected_sites})
+        st.rerun()
     
     st.divider()
-    max_results = st.number_input("Max Results", value=20)
-    since_year = st.number_input("Since Year", value=2020)
+    max_results = st.number_input("Max Results", value=st.session_state.max_results)
+    since_year = st.number_input("Since Year", value=st.session_state.since_year)
+    st.session_state.max_results = max_results
+    st.session_state.since_year = since_year
     
-    col1, col2 = st.columns([1, 5])
+    col1, col2, col3 = st.columns([1, 2, 3])
     with col1:
         if st.button("Back"): st.session_state.slr_step = 2; st.rerun()
     with col2:
+        if st.button("Regenerate Queries 🔄"):
+            with st.spinner("Regenerating..."):
+                try:
+                    qs = client.generate_queries(st.session_state.research_questions, selected_sites, api_key, provider)
+                    st.session_state.queries = qs
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Error: {e}")
+    with col3:
         if st.button("Execute Search →"):
             with st.spinner("Starting jobs..."):
                 try:
@@ -237,9 +305,13 @@ elif st.session_state.slr_step == 4:
             time.sleep(2)
             st.rerun()
     
-    if st.button("Filter by Relevance →"):
-        st.session_state.slr_step = 5
-        st.rerun()
+    col1, col2 = st.columns([1, 5])
+    with col1:
+        if st.button("Back"): st.session_state.slr_step = 3; st.rerun()
+    with col2:
+        if st.button("Filter by Relevance →"):
+            st.session_state.slr_step = 5
+            st.rerun()
 
 # Step 5: Results
 elif st.session_state.slr_step == 5:
@@ -277,6 +349,108 @@ elif st.session_state.slr_step == 5:
     
     st.dataframe(pd.DataFrame(res['included']))
     
+    # --- Advanced Exports ---
+    st.markdown("### 📤 Exports")
+    
+    # 1. Methodology Report
+    def generate_methodology_report():
+        report = f"""# Systematic Literature Review Methodology Report
+
+## Session: {st.session_state.session_name}
+**Date:** {time.strftime("%Y-%m-%d %H:%M:%S")}
+
+---
+
+## 1. Research Topic
+{st.session_state.abstract}
+
+---
+
+## 2. Research Questions
+"""
+        if st.session_state.research_questions:
+            for i, rq in enumerate(st.session_state.research_questions.get('questions', []), 1):
+                report += f"{i}. {rq}\n"
+            
+            report += f"\n**Keywords:** {', '.join(st.session_state.research_questions.get('keywords', []))}\n"
+
+        report += """
+---
+
+## 3. Search Strategy
+"""
+        if st.session_state.queries:
+            report += "### Search Queries\n"
+            for i, q in enumerate(st.session_state.queries, 1):
+                report += f"{i}. `{q['query']}`\n"
+        
+        report += f"""
+### Parameters
+- **Since Year:** {st.session_state.since_year}
+- **Max Results/Query:** {st.session_state.max_results}
+- **Sources:** {', '.join(selected_sites) if selected_sites else 'All'}
+
+---
+
+## 4. Screening Results
+| Metric | Count |
+|--------|-------|
+| Total Papers Retrieved | {len(res.get('all', []))} |
+| Papers Included (Relevant) | {len(res['included'])} |
+| Papers Excluded | {len(res.get('excluded', []))} |
+
+---
+
+## 5. Included Papers
+| Title | Authors | URL |
+|-------|---------|-----|
+"""
+        for paper in res['included']:
+            t = paper.get('title', 'N/A').replace('|', '-')
+            a = paper.get('author', 'N/A').replace('|', '-')
+            u = paper.get('url', 'N/A')
+            report += f"| {t} | {a} | [Link]({u}) |\n"
+            
+        return report
+
+    col_exp1, col_exp2, col_exp3 = st.columns(3)
+    
+    with col_exp1:
+        # CSV Export
+        results_df = pd.DataFrame(res['included'])
+        csv_data = results_df.to_csv(index=False)
+        st.download_button(
+            "📊 Download Results CSV",
+            csv_data,
+            file_name=f"{st.session_state.session_name}_results.csv",
+            mime="text/csv"
+        )
+        
+    with col_exp2:
+        # Markdown Report
+        report_md = generate_methodology_report()
+        st.download_button(
+            "📝 Download Report (MD)",
+            report_md,
+            file_name=f"{st.session_state.session_name}_report.md",
+            mime="text/markdown",
+            help="Full methodology report suitable for papers"
+        )
+
+    with col_exp3:
+        # All Papers Export
+        if res.get('all'):
+            all_data = pd.DataFrame(res['all'])
+            st.download_button(
+                "📦 Download All (Pre-filter)",
+                all_data.to_csv(index=False),
+                file_name=f"{st.session_state.session_name}_all_papers.csv",
+                mime="text/csv"
+            )
+    
+    st.divider()
+    if st.button("Back"): st.session_state.slr_step = 4; st.rerun()
+    
     # Download
     if st.button("Download PDFs"):
         with st.spinner("Downloading..."):
@@ -285,3 +459,37 @@ elif st.session_state.slr_step == 5:
                 st.success(f"Downloaded to {path}")
             else:
                 st.warning("No PDFs found")
+
+# --- Sidebar state export ---
+st.sidebar.divider()
+st.sidebar.subheader("💾 Session Management")
+
+# Function to prepare state as JSON
+def get_wizard_state():
+    state = {
+        key: st.session_state[key]
+        for key in [
+            "session_name", "session_created_at",
+            "slr_step", "abstract", "research_questions", "queries", 
+            "max_results", "since_year", "job_ids", "chat_history", "results"
+        ]
+        if key in st.session_state
+    }
+    state["exported_at"] = time.strftime("%Y-%m-%d %H:%M:%S")
+    return state
+
+wizard_json = json.dumps(get_wizard_state(), indent=2)
+st.sidebar.download_button(
+    "📥 Download State JSON",
+    wizard_json,
+    file_name=f"{st.session_state.get('session_name', 'session')}_{int(time.time())}.json",
+    mime="application/json",
+    help="Download everything including your research questions and generated queries."
+)
+
+if st.sidebar.button("🗑️ Reset Wizard"):
+    keys_to_reset = ["slr_step", "abstract", "research_questions", "queries", "job_ids", "results", "chat_history"]
+    for k in keys_to_reset:
+        if k in st.session_state:
+            del st.session_state[k]
+    st.rerun()

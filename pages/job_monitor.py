@@ -2,8 +2,10 @@ import streamlit as st
 import pandas as pd
 import time
 from client import ApiClient
+from shared.ui import sidebar_api_key
 
 st.set_page_config(page_title="Job Monitor", page_icon="📊", layout="wide")
+api_key = sidebar_api_key()
 
 st.title("📊 Job Monitor")
 

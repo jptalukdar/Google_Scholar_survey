@@ -50,6 +50,7 @@ class GoogleScholarProvider(Provider):
 
     def save_results(self, res):
         url_hash = self.get_url_hash()
+        print(url_hash)
         cache_file = os.path.join(
             SEARCH_DIR, f"{self.__class__.__name__}_{url_hash}.json"
         )

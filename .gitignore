@@ -175,3 +175,5 @@ final_test_with_logging.txt
 final_test_output.txt
 debug_test_output.txt
 /debug
+
+!slr-extension/manifest.json

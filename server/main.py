@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Body
+from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import os
 import logging
@@ -32,9 +33,21 @@ from slr.question_generator import ResearchQuestionGenerator, ResearchQuestions
 from slr.query_generator import QueryGenerator
 from slr.relevance_filter import RelevanceFilter
 from slr.workflow import SLRWorkflow
+from slr.workflow import SLRWorkflow
 from ai import get_provider
+from server.extension import router as extension_router
 
 app = FastAPI(title="SLR Worker API", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # For extension development, allow all. Prod should restrict.
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(extension_router)
 
 @app.middleware("http")
 async def log_requests(request, call_next):

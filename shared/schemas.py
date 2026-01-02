@@ -89,3 +89,18 @@ class DownloadResponse(BaseModel):
     success: bool
     zip_path: Optional[str] = None
     message: Optional[str] = None
+
+class ExtensionPaper(BaseModel):
+    id: str
+    title: str
+    url: str
+    authors: Optional[str] = ""
+    abstract: Optional[str] = ""
+    pdfUrl: Optional[str] = None
+    source: str = "Google Scholar"
+    project_id: Optional[str] = "default"
+
+class ExtensionProject(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
