@@ -1,102 +1,93 @@
 import streamlit as st
 import pandas as pd
 import time
-from api import JobManager
-from workers.job import JobStatus
+from client import ApiClient
 
-st.set_page_config(page_title="Job Monitor", layout="wide")
-st.title("Job Monitor")
+st.set_page_config(page_title="Job Monitor", page_icon="📊", layout="wide")
 
-manager = JobManager()
+st.title("📊 Job Monitor")
 
-# Sidebar - Refresh
-refresh_rate = st.sidebar.slider("Refresh Rate (seconds)", 1, 60, 5)
+if 'api_client' not in st.session_state:
+    st.session_state.api_client = ApiClient()
 
-if st.sidebar.button("Refresh Now"):
+client = st.session_state.api_client
+
+# Refresh button
+if st.button("🔄 Refresh"):
     st.rerun()
 
-# List Jobs
-st.subheader("Active Jobs")
-jobs = manager.list_jobs()
+# List jobs
+try:
+    jobs = client.list_jobs()
+except Exception as e:
+    st.error(f"Failed to fetch jobs: {e}")
+    st.stop()
 
 if not jobs:
     st.info("No jobs found.")
 else:
-    # Create a nice dataframe view
-    job_data = []
-    for job in jobs:
-        try:
-             job_data.append({
-                "Job ID": job.id,
-                "Query": job.query,
-                "Status": job.status.value,
-                "Progress": f"{job.progress*100:.1f}%",
-                "Results": job.total_results,
-                "Created At": job.created_at.strftime("%Y-%m-%d %H:%M:%S")
-            })
-        except:
-             continue # Handle malformed jobs gracefully
-
-    df = pd.DataFrame(job_data)
+    # Convert to DataFrame for display
+    df = pd.DataFrame(jobs)
     
-    # Custom styling for status? Streamlit data editor is good enough
-    event = st.dataframe(
-        df,
+    # Display table
+    st.dataframe(
+        df[["id", "query", "status", "progress", "total_results", "created_at"]],
         use_container_width=True,
-        hide_index=True,
-        selection_mode="single-row",
-        on_select="rerun"
+        hide_index=True
     )
-
-    # Job Details Selection
-    selected_rows = event.selection.rows
-    if selected_rows:
-        selected_index = selected_rows[0]
-        selected_job_id = df.iloc[selected_index]["Job ID"]
+    
+    st.divider()
+    
+    # Job Details
+    st.subheader("Job Details")
+    selected_job_id = st.selectbox("Select Job", options=[j['id'] for j in jobs], format_func=lambda x: f"{x} - {next((j['query'] for j in jobs if j['id'] == x), '')}")
+    
+    if selected_job_id:
+        job_detail = client.get_job(selected_job_id)
         
-        st.divider()
-        st.subheader(f"Job Details: {selected_job_id}")
-        
-        job = manager.get_job(selected_job_id)
-        if job:
-            col1, col2 = st.columns(2)
-            
+        if job_detail:
+            col1, col2, col3 = st.columns(3)
             with col1:
-                st.metric("Status", job.status.value)
-                st.metric("Results Found", job.total_results)
-                
+                st.metric("Status", job_detail['status'])
+                pg = job_detail['progress']
+                st.progress(pg if pg <= 1.0 else 1.0)
             with col2:
-                st.progress(job.progress, text="Progress")
-                if job.completed_at:
-                    st.text(f"Completed: {job.completed_at}")
-                if job.error:
-                    st.error(f"Error: {job.error}")
+                st.metric("Results Found", job_detail['total_results'])
+            with col3:
+                # Cancel button
+                if job_detail['status'] in ["pending", "running"]:
+                    if st.button("🛑 Cancel Job"):
+                        if client.cancel_job(selected_job_id):
+                            st.success("Cancellation requested.")
+                            time.sleep(1)
+                            st.rerun()
+                        else:
+                            st.error("Failed to cancel.")
 
-            if job.status in [JobStatus.PENDING, JobStatus.RUNNING]:
-                if st.button("Cancel Job", type="primary"):
-                    if manager.cancel_job(job.id):
-                        st.success("Job cancellation requested.")
-                        time.sleep(1)
-                        st.rerun()
-                    else:
-                        st.error("Failed to cancel job.")
-
-            # Logs Expander
-            with st.expander("Execution Logs", expanded=True):
-                logs = manager.read_logs(job.id)
-                st.code(logs, language="text")
-
-            # Results Expander
-            with st.expander("Search Results"):
-                results = manager.get_job_results(job.id)
+            # Tabs for Logs and Results
+            tab1, tab2 = st.tabs(["📝 Logs", "📄 Results"])
+            
+            with tab1:
+                logs = job_detail.get('logs', [])
+                if logs:
+                    st.code("\n".join(logs[-20:])) # Show last 20 lines
+                    with st.expander("Full Logs"):
+                        st.code("\n".join(logs))
+                else:
+                    st.info("No logs available.")
+            
+            with tab2:
+                results = job_detail.get('results', [])
                 if results:
                     st.dataframe(pd.DataFrame(results))
+                    
+                    # Download CSV
+                    csv = pd.DataFrame(results).to_csv(index=False)
+                    st.download_button(
+                        "📥 Download Results CSV",
+                        csv,
+                        "results.csv",
+                        "text/csv"
+                    )
                 else:
                     st.info("No results yet.")
-        else:
-            st.error("Could not load job details.")
-
-# Auto-refresh logic using empty placeholder
-if refresh_rate > 0:
-    time.sleep(refresh_rate)
-    st.rerun()

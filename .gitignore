@@ -171,3 +171,7 @@ chromedriver/
 /chromedriver-win64
 error_log.txt
 empty_provider_urls.txt
+final_test_with_logging.txt
+final_test_output.txt
+debug_test_output.txt
+/debug

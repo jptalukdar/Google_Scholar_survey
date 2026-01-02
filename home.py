@@ -1,75 +1,71 @@
 import streamlit as st
-import pandas as pd
-import os
-from api import JobManager
+import time
+from client import ApiClient
 
-current_dir = os.path.abspath(os.getcwd())
-driver_bin = os.path.join(current_dir, "driver")
-# Ensure driver is in path if needed by local selenium
-if driver_bin not in os.environ["PATH"]:
-    os.environ["PATH"] += os.pathsep + driver_bin
+st.set_page_config(
+    page_title="Scholar Survey",
+    page_icon="🎓",
+    layout="centered"
+)
 
-def main():
-    st.set_page_config(page_title="Scholar Downloader", layout="wide")
-    st.title("Google Scholar Search Job Submitter")
+# Initialize API Client
+if 'api_client' not in st.session_state:
+    st.session_state.api_client = ApiClient()
 
-    st.markdown("""
-    Submit a background job to search Google Scholar and download PDFs.
-    You can track progress in the **Job Monitor** page.
-    """)
+st.title("🎓 Google Scholar Survey")
+st.markdown("Automated systematic literature review and data extraction.")
 
-    query = st.text_input("Enter Query")
+# Server Health Check
+if not st.session_state.api_client.get_health():
+    st.error("⚠️ Cannot connect to backend server. Is it running? (Run `python start_system.py`)")
+    st.stop()
+
+# --- Job Submission ---
+st.header("Start New Search")
+
+with st.form("search_form"):
+    query = st.text_input("Search Query", placeholder='e.g., "generative ai" AND "software engineering"')
     
-    col1, col2, col3 = st.columns(3)
-    
+    col1, col2 = st.columns(2)
     with col1:
-        start = st.number_input("Start Index", min_value=0, max_value=1000, value=0)
-    with col2:
-        max_results = st.number_input("Max Results", min_value=10, max_value=1000, value=20, step=10)
-    with col3:
-        step = st.number_input("Step (Batch Size)", min_value=1, value=10)
-        
-    since_year = st.number_input("Since Year", min_value=1900, max_value=2025, value=2020)
-    download_pdfs = st.checkbox("Download PDFs if available")
-
-    # Site Restriction
-    DEFAULT_SITES = [
-        "sciencedirect.com",
-        "ieeexplore.ieee.org",
-        "link.springer.com",
-        "dl.acm.org",
-        "onlinelibrary.wiley.com",
-        "mdpi.com",
-        "frontiersin.org",
-        "arxiv.org"
-    ]
+        since_year = st.number_input("Since Year", min_value=1900, max_value=2025, value=2020)
+        max_results = st.number_input("Max Results", min_value=10, max_value=1000, value=100)
     
-    selected_sites = st.multiselect(
-        "Restrict to Specific Databases (Leave empty to search all)",
-        options=DEFAULT_SITES,
-        default=[]
-    )
+    with col2:
+        # Get sites from shared/constant if possible, or hardcode common ones
+        DEFAULT_SITES = [
+            "sciencedirect.com", "ieeexplore.ieee.org", "link.springer.com", 
+            "dl.acm.org", "onlinelibrary.wiley.com", "arxiv.org"
+        ]
+        sites = st.multiselect("Restrict to Sites", options=DEFAULT_SITES)
+        download_pdfs = st.checkbox("Download PDFs", value=False)
+        
+    submitted = st.form_submit_button("Submit Job")
 
-    if st.button("Submit Job", type="primary"):
-        if not query:
-            st.error("Please enter a query.")
-        else:
-            manager = JobManager()
-            job_id = manager.submit_job(
-                query=query,
-                start=start,
-                max_results=max_results,
-                step=step,
-                since_year=since_year,
-                download_pdfs=download_pdfs,
-                sites=selected_sites
-            )
+if submitted:
+    if query:
+        try:
+            with st.spinner("Submitting job..."):
+                job_id = st.session_state.api_client.submit_job(
+                    query=query,
+                    max_results=max_results,
+                    since_year=since_year,
+                    sites=sites,
+                    download_pdfs=download_pdfs
+                )
             
-            st.success(f"Job submitted successfully! Job ID: `{job_id}`")
-            st.info("Navigate to the **Job Monitor** page to track this job.")
+            st.success(f"Job submitted successfully! ID: `{job_id}`")
+            st.info("Navigate to 'Job Monitor' in the sidebar to track progress.")
             
-            # Optional: Link to monitor page (hacky in Streamlit, better to just tell user)
-            st.markdown("[Go to Job Monitor](/job_monitor)")
+        except Exception as e:
+            st.error(f"Failed to submit job: {e}")
+    else:
+        st.warning("Please enter a search query.")
 
-if __name__ == "__main__":
-    main()
+st.divider()
+
+st.markdown("""
+### Quick Links
+- 📊 **[Job Monitor](/job_monitor)**: Check status and results
+- 🧙‍♂️ **[SLR Wizard](/slr_wizard)**: AI-assisted review workflow
+""")
