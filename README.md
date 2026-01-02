@@ -62,3 +62,35 @@ run_frontend.bat
 - `slr/`: Systematic Literature Review logic.
 - `ai/`: LLM provider integration.
 - `shared/`: Shared Pydantic schemas.
+
+## Chrome Extension
+
+The `slr-extension/` folder contains a browser extension for Google Scholar integration.
+
+### Installation
+1. Go to `chrome://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked** → select `slr-extension/`
+
+### Features
+- **Assistant Tab**: Generate search queries from abstracts using AI
+- **Database Tab**: Manage saved papers with status tracking
+- **In-page buttons**: Add papers directly from Google Scholar results
+
+## Data Export/Import
+
+Transfer your papers and projects between machines:
+
+```bash
+# Export all data
+python export_import_data.py export
+
+# Export papers only (CSV)
+python export_import_data.py export-csv
+
+# Import on another machine
+python export_import_data.py import slr_export_20260102.json
+
+# View statistics
+python export_import_data.py stats
+```
